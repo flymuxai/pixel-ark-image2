@@ -17,6 +17,41 @@
 - 一个可用的 GPT Image 兼容 API Key
 - 支持 macOS、Linux 和 Windows
 
+## AI Agent 最小安装路径
+
+当 Codex、Claude Code 或其他支持 MCP 的 AI 编程助手读取本 README 时，优先按本节完成安装。
+
+1. 在仓库根目录执行：
+
+```bash
+npm install
+```
+
+2. 确认用户已配置 `IMAGE2_API_KEY` 或 `OPENAI_API_KEY`。如果没有，只提示用户配置 Key，不要写入占位 Key。
+
+3. 将本服务注册为 MCP server：
+
+```json
+{
+  "command": "node",
+  "args": ["/absolute/path/to/pixel-ark-mcp/server.js"],
+  "env": {
+    "IMAGE2_MODEL": "gpt-image-2"
+  }
+}
+```
+
+4. 刷新 MCP 客户端，并确认工具列表包含：
+
+```text
+image2_generate
+image2_edit
+image2_extract_elements
+image2_start_generation
+image2_get_job
+image2_cancel_job
+```
+
 ## 安装
 
 ```bash
