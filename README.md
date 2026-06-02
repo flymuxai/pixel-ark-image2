@@ -15,7 +15,7 @@
 
 - Node.js 20 或更高版本
 - 一个可用的 GPT Image 兼容 API Key
-- 可选：Python。只有在使用 `image2_extract_elements` 且模型不支持原生透明背景时才需要。
+- 支持 macOS、Linux 和 Windows
 
 ## 安装
 
@@ -93,22 +93,3 @@ IMAGE2_DEFAULT_OUTPUT_DIR=~/Pictures/pixel-ark
 ```
 
 调用工具时也可以传入 `output_dir` 覆盖默认目录。
-
-## 安全说明
-
-不要提交以下内容到 Git：
-
-- `image2-mcp.env`
-- `.env` 或任何包含 Key 的环境变量文件
-- `jobs/`
-- `assets/`
-- `node_modules/`
-- `.npm-cache/`
-
-本仓库的 `.gitignore` 已默认忽略这些内容。
-
-## Windows 支持
-
-`image2_generate` 和 `image2_edit` 可以在 Windows 上使用，只要 Node.js 版本满足要求并正确配置 Key。
-
-`image2_extract_elements` 在使用 `gpt-image-2` 时会走色键背景加本地抠图流程，因此需要 Python 和 Codex 的 imagegen helper。没有这些依赖时，建议先使用生成和编辑功能。
