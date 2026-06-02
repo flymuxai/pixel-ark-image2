@@ -1,0 +1,26 @@
+{
+  "name": "pixel-ark-mcp",
+  "version": "0.1.0",
+  "description": "A local GPT Image2 MCP server for generating, editing, and exporting image assets.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pixel-ark-mcp": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "mcp",
+    "gpt-image-2",
+    "image-generation",
+    "codex"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
