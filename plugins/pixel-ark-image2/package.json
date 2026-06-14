@@ -5,10 +5,11 @@
   "private": true,
   "type": "module",
   "bin": {
-    "pixel-ark-image2": "./server.js",
-    "pixel-ark-mcp": "./server.js"
+    "pixel-ark-image2": "./dist/server.js",
+    "pixel-ark-mcp": "./dist/server.js"
   },
   "scripts": {
+    "build": "esbuild server.js --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.js",
     "start": "node server.js"
   },
   "keywords": [
@@ -20,6 +21,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
   },
   "engines": {
     "node": ">=20"

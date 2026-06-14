@@ -3,7 +3,7 @@
     "image2": {
       "command": "node",
       "args": [
-        "./server.js"
+        "./dist/server.js"
       ],
       "cwd": "."
     }
