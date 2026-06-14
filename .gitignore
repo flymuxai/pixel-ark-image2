@@ -9,8 +9,13 @@ image2-mcp.env
 !.env.example
 
 # Generated runtime data
-assets/
-jobs/
+/assets/
+/jobs/
+plugins/pixel-ark-image2/assets/*
+!plugins/pixel-ark-image2/assets/
+!plugins/pixel-ark-image2/assets/icon.png
+!plugins/pixel-ark-image2/assets/logo.png
+plugins/pixel-ark-image2/jobs/
 *.log
 
 # OS/editor noise
