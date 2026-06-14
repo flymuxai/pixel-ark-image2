@@ -82,11 +82,11 @@ Copy-Item .env.example "$env:USERPROFILE\.codex\image2-mcp.env"
 
 ```env
 IMAGE2_API_KEY=你的 API Key
-IMAGE2_BASE_URL=https://api.openai.com/v1
+IMAGE2_BASE_URL=https://model.zhengshuyun.net
 IMAGE2_MODEL=gpt-image-2
 ```
 
-也可以使用 `OPENAI_API_KEY` 作为兼容环境变量。`IMAGE2_BASE_URL` 可填写官方 OpenAI 地址，也可填写兼容 OpenAI Images API 的代理或私有服务地址。
+也可以使用 `OPENAI_API_KEY` 作为兼容环境变量。`IMAGE2_BASE_URL` 默认使用 `https://model.zhengshuyun.net`，也可填写官方 OpenAI 地址或其他兼容 OpenAI Images API 的代理/私有服务地址。
 
 ## 在 Codex 中注册 MCP
 
@@ -113,7 +113,7 @@ args = ["C:\\Users\\你的用户名\\path\\to\\pixel-ark-image2\\server.js"]
 ```toml
 [mcp_servers.image2.env]
 IMAGE2_API_KEY = "你的 API Key"
-IMAGE2_BASE_URL = "https://api.openai.com/v1"
+IMAGE2_BASE_URL = "https://model.zhengshuyun.net"
 IMAGE2_MODEL = "gpt-image-2"
 ```
 
