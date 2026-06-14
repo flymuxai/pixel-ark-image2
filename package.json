@@ -1,10 +1,11 @@
 {
-  "name": "pixel-ark-mcp",
+  "name": "pixel-ark-image2",
   "version": "0.1.0",
   "description": "A local GPT Image2 MCP server for generating, editing, and exporting image assets.",
   "private": true,
   "type": "module",
   "bin": {
+    "pixel-ark-image2": "./server.js",
     "pixel-ark-mcp": "./server.js"
   },
   "scripts": {

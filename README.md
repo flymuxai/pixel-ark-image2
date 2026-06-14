@@ -1,4 +1,4 @@
-# Pixel Ark MCP
+# Pixel Ark Image2
 
 一个基于 GPT Image2 的本地 MCP 生图服务，支持图片生成、图片编辑、元素拆分与透明素材导出，可在 Codex 等 MCP 客户端中直接调用。
 
@@ -34,7 +34,7 @@ npm install
 ```json
 {
   "command": "node",
-  "args": ["/absolute/path/to/pixel-ark-mcp/server.js"],
+  "args": ["/absolute/path/to/pixel-ark-image2/server.js"],
   "env": {
     "IMAGE2_MODEL": "gpt-image-2"
   }
@@ -55,8 +55,8 @@ image2_cancel_job
 ## 安装
 
 ```bash
-git clone https://gitee.com/codeTrees/pixel-ark-mcp.git
-cd pixel-ark-mcp
+git clone https://gitee.com/codeTrees/pixel-ark-image2.git
+cd pixel-ark-image2
 npm install
 ```
 
@@ -97,7 +97,7 @@ macOS / Linux 示例：
 ```toml
 [mcp_servers.image2]
 command = "node"
-args = ["/absolute/path/to/pixel-ark-mcp/server.js"]
+args = ["/absolute/path/to/pixel-ark-image2/server.js"]
 ```
 
 Windows 示例：
@@ -105,7 +105,7 @@ Windows 示例：
 ```toml
 [mcp_servers.image2]
 command = "node"
-args = ["C:\\Users\\你的用户名\\path\\to\\pixel-ark-mcp\\server.js"]
+args = ["C:\\Users\\你的用户名\\path\\to\\pixel-ark-image2\\server.js"]
 ```
 
 如果不想使用 `~/.codex/image2-mcp.env`，也可以直接在 MCP 配置里放环境变量：
