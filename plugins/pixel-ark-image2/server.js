@@ -250,7 +250,7 @@ async function extractDesignElements(args, signal) {
       prompt: buildElementExtractionPrompt(element, args.prompt_prefix),
       size: args.size,
       quality: args.quality,
-      background: "auto",
+      background: "transparent",
       output_format: args.output_format,
       moderation: args.moderation,
       output_compression: args.output_compression,
@@ -266,7 +266,7 @@ async function extractDesignElements(args, signal) {
       name: element.name,
       description: element.description || null,
       prompt: editArgs.prompt,
-      transparency_mode: "image2_prompted_transparent",
+      transparency_mode: "image2_native_transparent",
       images: result.images
     });
   }
@@ -395,7 +395,7 @@ function buildElementExtractionPrompt(element, promptPrefix) {
     element.description ? `Element identification: ${element.description}.` : "",
     element.prompt ? `Element-specific instruction: ${element.prompt}.` : "",
     promptPrefix ? `Shared instruction: ${promptPrefix}.` : "",
-    "Output a PNG with a real transparent background. Do not use a white, black, checkerboard, green-screen, gradient, or solid-color background.",
+    "Output a PNG with a real alpha-transparent background. The returned file must contain transparency, not a visual simulation of transparency. Do not draw a white, black, checkerboard, green-screen, gradient, or solid-color background.",
     "Keep only the requested subject. Remove the surrounding scene, UI, background, unrelated objects, labels, captions, shadows that belong to the background, and cropped neighboring elements.",
     "Preserve the subject's visible style, colors, lighting, texture, proportions, silhouette, soft edges, glow, transparency, and fine details from the source image.",
     "Center the subject with a small safe margin. Do not crop the subject. Do not add a frame, canvas, sticker border, drop shadow, or new decorative elements.",
