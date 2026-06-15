@@ -50,6 +50,7 @@ After every successful generation, edit, extraction, or async job:
 7. It is okay to use the local path inside Markdown image syntax because that is required for inline preview, but do not repeat that path as visible text.
 8. If only URLs are returned, show the URLs as Markdown links only when needed, and avoid adding extra storage/path commentary.
 9. If a tool fails because the API key is missing, tell the user to configure the Image2 environment file; do not ask them to put keys in prompts.
+10. Do not visually inspect, judge, critique, score, or recheck generated images after success. Do not run follow-up image analysis, screenshot checks, retries, or repair edits unless the user explicitly asks. Output the preview directly and let the user decide.
 
 ## Output Defaults
 
@@ -64,4 +65,5 @@ After every successful generation, edit, extraction, or async job:
 - Be concise.
 - Show the image previews first when the user mainly wants to see the result.
 - Do not append file paths after previews by default.
+- Do not add quality commentary such as whether the image is accurate, polished, flawed, or needs another pass unless the user asks for review.
 - Mention failed previews only when there is no usable local preview target or the image file does not exist.
