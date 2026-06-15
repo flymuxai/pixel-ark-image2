@@ -6889,7 +6889,6 @@ var require_dist = __commonJS({
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -21110,9 +21109,6 @@ var SERVER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 var DEFAULT_OUTPUT_DIR = path.join(SERVER_ROOT, "assets");
 var JOBS_DIR = path.join(SERVER_ROOT, "jobs");
 var DEFAULT_ENV_FILE = path.join(os.homedir(), ".codex", "image2-mcp.env");
-var CHROMA_KEY_HELPER = path.join(os.homedir(), ".codex", "skills", ".system", "imagegen", "scripts", "remove_chroma_key.py");
-var CHROMA_KEY_COLOR = "#00ff00";
-var PYTHON_BIN = process.env.IMAGE2_PYTHON || process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
 var IMAGE2_SIZES = /* @__PURE__ */ new Set(["auto", "1024x1024", "1024x1536", "1536x1024"]);
 var IMAGE2_QUALITIES = /* @__PURE__ */ new Set(["auto", "high", "medium", "low"]);
 var BACKGROUNDS = /* @__PURE__ */ new Set(["auto", "transparent", "opaque"]);
@@ -21314,15 +21310,14 @@ async function extractDesignElements(args, signal) {
   assertConfigured();
   const outputDir = ensureOutputDir(args.output_dir);
   const elements = args.elements.map(normalizeElementSpec);
-  const nativeTransparent = supportsNativeTransparent(args.model);
   const extracted = [];
   for (const element of elements) {
     const editArgs = {
       model: args.model,
-      prompt: buildElementExtractionPrompt(element, args.prompt_prefix, { chromaKey: !nativeTransparent }),
+      prompt: buildElementExtractionPrompt(element, args.prompt_prefix),
       size: args.size,
       quality: args.quality,
-      background: nativeTransparent ? "transparent" : "opaque",
+      background: "transparent",
       output_format: args.output_format,
       moderation: args.moderation,
       output_compression: args.output_compression,
@@ -21333,13 +21328,12 @@ async function extractDesignElements(args, signal) {
       extra: args.extra
     };
     const result = await editImages(editArgs, signal);
-    const images = nativeTransparent ? result.images : removeChromaKeyFromImages(result.images, outputDir, `${args.filename_prefix}-${slugifyFilename(element.name)}`);
     extracted.push({
       name: element.name,
       description: element.description || null,
       prompt: editArgs.prompt,
-      transparency_mode: nativeTransparent ? "native" : "chroma_key",
-      images
+      transparency_mode: "image2_transparent",
+      images: result.images
     });
   }
   let background = null;
@@ -21369,7 +21363,7 @@ async function extractDesignElements(args, signal) {
     mode: "element_extraction",
     source_image: expandHome(args.image_path),
     output_dir: outputDir,
-    extraction_note: "This isolates or reconstructs named elements from a flattened source image. It does not recover original PSD/Figma layers. For models without native transparency, it generates a chroma-key plate and removes the key color locally.",
+    extraction_note: "This uses Image2 image editing to isolate or reconstruct named elements from a flattened source image. It does not recover original PSD/Figma layers or use external background-removal helpers.",
     elements: extracted,
     background
   };
@@ -21448,16 +21442,17 @@ function normalizeElementSpec(element) {
     prompt: element.prompt || ""
   };
 }
-function buildElementExtractionPrompt(element, promptPrefix, options = {}) {
+function buildElementExtractionPrompt(element, promptPrefix) {
   const parts = [
     "Use the source design image as visual reference.",
-    `Isolate only this design element as a standalone asset: ${element.name}.`,
+    `Isolate only this subject/design element as a standalone asset: ${element.name}.`,
     element.description ? `Element identification: ${element.description}.` : "",
     element.prompt ? `Element-specific instruction: ${element.prompt}.` : "",
     promptPrefix ? `Shared instruction: ${promptPrefix}.` : "",
-    options.chromaKey ? `Output only the selected element centered on a perfectly flat pure ${CHROMA_KEY_COLOR} background. The background must be a single solid color with no gradient, texture, shadows, reflections, or objects touching the image border.` : "Output only the selected element on a transparent background.",
-    "Preserve the visible style, colors, lighting, texture, proportions, and edge quality from the source image.",
-    "Remove the surrounding UI, background, unrelated objects, labels, captions, and any cropped neighboring elements.",
+    "Output a PNG with a real transparent background. Do not use a white, black, checkerboard, green-screen, gradient, or solid-color background.",
+    "Keep only the requested subject. Remove the surrounding scene, UI, background, unrelated objects, labels, captions, shadows that belong to the background, and cropped neighboring elements.",
+    "Preserve the subject's visible style, colors, lighting, texture, proportions, silhouette, soft edges, glow, transparency, and fine details from the source image.",
+    "Center the subject with a small safe margin. Do not crop the subject. Do not add a frame, canvas, sticker border, drop shadow, or new decorative elements.",
     "Do not add new text. If the element itself contains text, keep it only when it is visibly part of that element."
   ];
   return parts.filter(Boolean).join(" ");
@@ -21475,59 +21470,6 @@ function buildBackgroundExtractionPrompt(promptPrefix) {
 function slugifyFilename(value) {
   const slug = String(value || "element").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
   return slug || "element";
-}
-function supportsNativeTransparent(model) {
-  return !String(model || defaultModel).toLowerCase().includes("gpt-image-2");
-}
-function removeChromaKeyFromImages(images, outputDir, prefix) {
-  if (!fs.existsSync(CHROMA_KEY_HELPER)) {
-    throw new Error(`Chroma-key helper not found: ${CHROMA_KEY_HELPER}`);
-  }
-  return images.map((image, index) => {
-    if (!image.path) return image;
-    const inputPath = expandHome(image.path);
-    const extension = image.format === "webp" ? "webp" : "png";
-    const outputPath = path.join(
-      outputDir,
-      `${slugifyFilename(prefix)}-transparent-${index + 1}-${Date.now()}-${randomUUID().slice(0, 8)}.${extension}`
-    );
-    const process3 = spawnSync(
-      PYTHON_BIN,
-      [
-        CHROMA_KEY_HELPER,
-        "--input",
-        inputPath,
-        "--out",
-        outputPath,
-        "--key-color",
-        CHROMA_KEY_COLOR,
-        "--soft-matte",
-        "--transparent-threshold",
-        "42",
-        "--opaque-threshold",
-        "120",
-        "--edge-feather",
-        "1",
-        "--despill",
-        "--force"
-      ],
-      { encoding: "utf8", timeout: 12e4 }
-    );
-    if (process3.error) {
-      throw process3.error;
-    }
-    if (process3.status !== 0) {
-      const message = process3.stderr || process3.stdout || `chroma-key removal exited with ${process3.status}`;
-      throw new Error(message.trim());
-    }
-    return {
-      path: outputPath,
-      kind: image.kind,
-      format: extension,
-      bytes: fs.statSync(outputPath).size,
-      source_chroma_path: inputPath
-    };
-  });
 }
 function validateImageArgs(args) {
   if (!IMAGE2_SIZES.has(args.size) && !/^\d+x\d+$/.test(args.size)) {

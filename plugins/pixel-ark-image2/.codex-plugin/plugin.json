@@ -1,6 +1,6 @@
 {
   "name": "pixel-ark-image2",
-  "version": "0.1.0+codex.20260614161857",
+  "version": "0.1.0+codex.20260615044811",
   "description": "Pixel Ark Image2 is a local GPT Image compatible Codex plugin for generating, editing, extracting, and previewing image assets.",
   "author": {
     "name": "codeTrees / local plugin"
