@@ -32,10 +32,10 @@ fs.mkdirSync(JOBS_DIR, { recursive: true });
 
 const commonFields = {
   prompt: z.string().min(1).describe("Image prompt. Keep text-heavy content out of images when the asset will be placed into editable PPTX."),
-  model: z.string().default(defaultModel).describe("Image model name. Default comes from IMAGE2_MODEL, normally gpt-image-2."),
+  model: z.string().default(defaultModel).describe("Image model name. Default comes from IMAGE2_MODEL, normally gpt-image-2. Do not override it unless the user explicitly asks for another model."),
   size: z.string().default("auto").describe("Output size. Official presets are auto, 1024x1024, 1024x1536, 1536x1024. Custom sizes may be accepted by compatible providers if they meet provider constraints."),
   quality: z.enum(["auto", "high", "medium", "low"]).default("auto").describe("Rendering quality. Higher quality can cost more and take longer."),
-  background: z.enum(["auto", "transparent", "opaque"]).default("auto").describe("Background mode for general generation/editing when supported by the selected output format/model. For subject isolation, cutouts, removing background, or transparent PNG assets from a source image, use image2_extract_elements instead of image2_edit."),
+  background: z.enum(["auto", "transparent", "opaque"]).default("auto").describe("Background mode for general generation/editing. For subject isolation, cutouts, removing background, or transparent PNG assets from a source image, use image2_extract_elements instead of image2_edit."),
   output_format: z.enum(["png", "jpeg", "webp"]).default("png").describe("Output image format. Use png for PPT assets unless file size matters."),
   moderation: z.enum(["auto", "low"]).default("auto").describe("Moderation strictness where supported by the provider."),
   output_compression: z.number().int().min(0).max(100).optional().describe("Compression level for jpeg/webp where supported; ignored for png by many providers."),
@@ -69,7 +69,7 @@ const extractElementsSchema = z.object({
   elements: z.array(elementSpecSchema).min(1).max(24).describe("Elements to isolate. Provide names or objects with name/description/prompt."),
   include_background: z.boolean().default(false).describe("Also recreate the underlying background/backdrop as a separate asset."),
   prompt_prefix: z.string().optional().describe("Shared extra instructions applied to every element extraction."),
-  model: z.string().default(defaultModel).describe("Image model name. Default comes from IMAGE2_MODEL, normally gpt-image-2."),
+  model: z.string().default(defaultModel).describe("Image model name. Default comes from IMAGE2_MODEL, normally gpt-image-2. Do not override it unless the user explicitly asks for another model."),
   size: z.string().default("auto").describe("Output size. Official presets are auto, 1024x1024, 1024x1536, 1536x1024. Custom sizes may be accepted by compatible providers if they meet provider constraints."),
   quality: z.enum(["auto", "high", "medium", "low"]).default("auto").describe("Rendering quality. Higher quality can cost more and take longer."),
   output_format: z.enum(["png", "webp"]).default("png").describe("Transparent-friendly output image format. Use png for PPT assets."),
@@ -250,7 +250,7 @@ async function extractDesignElements(args, signal) {
       prompt: buildElementExtractionPrompt(element, args.prompt_prefix),
       size: args.size,
       quality: args.quality,
-      background: "transparent",
+      background: "auto",
       output_format: args.output_format,
       moderation: args.moderation,
       output_compression: args.output_compression,
@@ -266,7 +266,7 @@ async function extractDesignElements(args, signal) {
       name: element.name,
       description: element.description || null,
       prompt: editArgs.prompt,
-      transparency_mode: "image2_transparent",
+      transparency_mode: "image2_prompted_transparent",
       images: result.images
     });
   }

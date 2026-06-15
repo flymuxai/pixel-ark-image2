@@ -22,6 +22,7 @@ Use this skill when the user asks to generate, edit, modify, split, extract, pre
 - Do not call `image2_edit` first for subject isolation or transparent-background cutouts. This is predictable from the request; route directly to `image2_extract_elements`.
 - Use `image2_edit` only for normal image-to-image edits that keep the full image/composition or transform the provided image without isolating a subject.
 - Keep all image generation and image editing work inside Pixel Ark Image2. Do not route subject isolation, image-to-image edits, or transparent asset creation through external image skills or background-removal tools.
+- Do not switch models, providers, or tools because a transparent-background request appears difficult. Use the configured Image2 model unless the user explicitly asks to change it.
 
 ## Waiting And Retry
 
@@ -59,7 +60,7 @@ After every successful generation, edit, extraction, or async job:
 - The MCP server reads `IMAGE2_API_KEY`, `OPENAI_API_KEY`, `IMAGE2_BASE_URL`, `IMAGE2_MODEL`, and `IMAGE2_DEFAULT_OUTPUT_DIR` from the environment or `~/.codex/image2-mcp.env`.
 - Use `png` for PPT, transparent assets, and design work unless the user asks for another format.
 - Keep prompt text out of generated images when the image will be used in editable PPT or UI layouts.
-- For subject isolation, describe the target subject precisely and ask Image2 for a transparent PNG. Treat it as Image2 image-to-image generation, not as external layer extraction or local matting.
+- For subject isolation, describe the target subject precisely and ask Image2 for a transparent PNG in the prompt. Treat it as Image2 image-to-image generation, not as external layer extraction, local matting, or a reason to change models.
 
 ## Response Style
 
