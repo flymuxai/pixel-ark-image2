@@ -18,8 +18,9 @@ Use this skill when the user asks to generate, edit, modify, split, extract, pre
   - `image2_cancel_job`
 - Prefer `image2_start_generation` for slow or multi-image generation, then poll `image2_get_job` until completion before reporting results.
 - Use `image2_generate` directly for simple single-image requests.
-- Use `image2_edit` when the user provides one or more source images.
-- Use `image2_extract_elements` when the user wants reusable transparent assets from a flattened design.
+- Use `image2_extract_elements` first when the user asks for subject isolation, cutout-like output, removing background, extracting the main subject, "only the subject", "transparent PNG", "alpha", "no background", or reusable transparent assets from a source image.
+- Do not call `image2_edit` first for subject isolation or transparent-background cutouts. This is predictable from the request; route directly to `image2_extract_elements`.
+- Use `image2_edit` only for normal image-to-image edits that keep the full image/composition or transform the provided image without isolating a subject.
 - Keep all image generation and image editing work inside Pixel Ark Image2. Do not route subject isolation, image-to-image edits, or transparent asset creation through external image skills or background-removal tools.
 
 ## Waiting And Retry

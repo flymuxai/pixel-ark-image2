@@ -35,7 +35,7 @@ const commonFields = {
   model: z.string().default(defaultModel).describe("Image model name. Default comes from IMAGE2_MODEL, normally gpt-image-2."),
   size: z.string().default("auto").describe("Output size. Official presets are auto, 1024x1024, 1024x1536, 1536x1024. Custom sizes may be accepted by compatible providers if they meet provider constraints."),
   quality: z.enum(["auto", "high", "medium", "low"]).default("auto").describe("Rendering quality. Higher quality can cost more and take longer."),
-  background: z.enum(["auto", "transparent", "opaque"]).default("auto").describe("Background mode. Transparent is useful for icons/cutouts when supported by the selected output format/model."),
+  background: z.enum(["auto", "transparent", "opaque"]).default("auto").describe("Background mode for general generation/editing when supported by the selected output format/model. For subject isolation, cutouts, removing background, or transparent PNG assets from a source image, use image2_extract_elements instead of image2_edit."),
   output_format: z.enum(["png", "jpeg", "webp"]).default("png").describe("Output image format. Use png for PPT assets unless file size matters."),
   moderation: z.enum(["auto", "low"]).default("auto").describe("Moderation strictness where supported by the provider."),
   output_compression: z.number().int().min(0).max(100).optional().describe("Compression level for jpeg/webp where supported; ignored for png by many providers."),
@@ -111,7 +111,7 @@ server.tool(
 
 server.tool(
   "image2_edit",
-  "Edit one or more images with a GPT Image compatible API and save the outputs to disk.",
+  "Edit one or more images with a GPT Image compatible API and save the outputs to disk. Use for general image-to-image edits that keep the full composition. Do not use first for subject isolation, cutouts, removing background, or transparent PNG assets; use image2_extract_elements for those.",
   editSchema.shape,
   async (args) => {
     const result = await editImages(args);
@@ -121,7 +121,7 @@ server.tool(
 
 server.tool(
   "image2_extract_elements",
-  "Split a flattened design image into named transparent PNG/WebP assets by running one edit per requested element.",
+  "Use Image2 image editing to isolate described subjects/elements from a source image as transparent PNG/WebP assets. Use this first for requests like only the subject, remove background, cutout, transparent PNG, alpha, or extracting reusable assets.",
   extractElementsSchema.shape,
   async (args) => {
     const result = await extractDesignElements(args);
