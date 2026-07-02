@@ -10,12 +10,16 @@ Use this skill when the user asks to generate, edit, modify, split, extract, pre
 ## Tool Choice
 
 - Use the bundled MCP tools for image work:
+  - `image2_register_asset`
   - `image2_generate`
   - `image2_edit`
   - `image2_extract_elements`
   - `image2_start_generation`
   - `image2_get_job`
   - `image2_cancel_job`
+- When editing an image that has already appeared in the thread or canvas, prefer `image2_register_asset` once and then pass `image_asset_ids` to `image2_edit` instead of repeating old image paths, screenshots, base64, OCR dumps, or full historical context.
+- Treat each image operation as a fresh, minimal task packet. Include only the current user instruction, the target asset id/path, an optional mask, and at most 1-3 explicit reference images.
+- Do not pass all prior images, all previous generated outputs, full canvas state, large JSON artifacts, or long conversation history into a new image request.
 - Prefer `image2_start_generation` for slow or multi-image generation, then poll `image2_get_job` until completion before reporting results.
 - Use `image2_generate` directly for simple single-image requests.
 - Use `image2_extract_elements` first when the user asks for subject isolation, cutout-like output, removing background, extracting the main subject, "only the subject", "transparent PNG", "alpha", "no background", or reusable transparent assets from a source image.
@@ -58,6 +62,8 @@ After every successful generation, edit, extraction, or async job:
 
 - Do not hard-code API keys.
 - The MCP server reads `IMAGE2_API_KEY`, `OPENAI_API_KEY`, `IMAGE2_BASE_URL`, `IMAGE2_MODEL`, and `IMAGE2_DEFAULT_OUTPUT_DIR` from the environment or `~/.codex/image2-mcp.env`.
+- The MCP server keeps a lightweight local asset registry. Use `image2_register_asset` for reusable images and pass `image_asset_ids` for later edits.
+- Image editing tools automatically downsample, compress, deduplicate, and budget-check input images before upload. Keep the defaults unless the user explicitly asks for pixel-level fidelity.
 - Use `png` for PPT, transparent assets, and design work unless the user asks for another format.
 - Keep prompt text out of generated images when the image will be used in editable PPT or UI layouts.
 - For subject isolation, describe the target subject precisely and ask Image2 for a transparent PNG in the prompt. Treat it as Image2 image-to-image generation, not as external layer extraction, local matting, or a reason to change models.

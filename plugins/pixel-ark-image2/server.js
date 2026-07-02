@@ -2,7 +2,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -11,6 +12,8 @@ import { z } from "zod";
 const SERVER_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUTPUT_DIR = path.join(SERVER_ROOT, "assets");
 const JOBS_DIR = path.join(SERVER_ROOT, "jobs");
+const INPUT_CACHE_DIR = path.join(SERVER_ROOT, "input-cache");
+const ASSETS_FILE = path.join(SERVER_ROOT, "assets.json");
 const DEFAULT_ENV_FILE = path.join(os.homedir(), ".codex", "image2-mcp.env");
 const IMAGE2_SIZES = new Set(["auto", "1024x1024", "1024x1536", "1536x1024"]);
 const IMAGE2_QUALITIES = new Set(["auto", "high", "medium", "low"]);
@@ -18,7 +21,12 @@ const BACKGROUNDS = new Set(["auto", "transparent", "opaque"]);
 const OUTPUT_FORMATS = new Set(["png", "jpeg", "webp"]);
 const MODERATIONS = new Set(["auto", "low"]);
 const MAX_PARTIAL_IMAGES = 3;
+const DEFAULT_MAX_INPUT_BYTES = 18 * 1024 * 1024;
+const DEFAULT_MAX_SINGLE_INPUT_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_INPUT_LONG_EDGE = 1536;
+const DEFAULT_INPUT_COMPRESSION_QUALITY = 82;
 const jobs = new Map();
+const registeredAssets = loadAssetRegistry();
 
 loadEnvFile(process.env.IMAGE2_ENV_FILE || DEFAULT_ENV_FILE);
 
@@ -29,6 +37,17 @@ const defaultOutputDir = expandHome(process.env.IMAGE2_DEFAULT_OUTPUT_DIR || DEF
 
 fs.mkdirSync(defaultOutputDir, { recursive: true });
 fs.mkdirSync(JOBS_DIR, { recursive: true });
+fs.mkdirSync(INPUT_CACHE_DIR, { recursive: true });
+
+const inputBudgetFields = {
+  image_asset_ids: z.array(z.string()).max(8).optional().describe("Previously registered Image2 asset ids to use as input references. Prefer this over re-sending old image context."),
+  input_preprocessing: z.boolean().default(true).describe("Downsample and compress local input images before upload to keep request bodies within budget."),
+  max_input_bytes: z.number().int().min(256 * 1024).max(100 * 1024 * 1024).default(DEFAULT_MAX_INPUT_BYTES).describe("Maximum total prepared image bytes allowed for one edit request."),
+  max_single_input_bytes: z.number().int().min(128 * 1024).max(50 * 1024 * 1024).default(DEFAULT_MAX_SINGLE_INPUT_BYTES).describe("Target maximum bytes for each prepared input image."),
+  max_input_long_edge: z.number().int().min(256).max(4096).default(DEFAULT_MAX_INPUT_LONG_EDGE).describe("Maximum long edge for prepared input images."),
+  input_compression_quality: z.number().int().min(40).max(100).default(DEFAULT_INPUT_COMPRESSION_QUALITY).describe("JPEG compression quality for prepared non-transparent input images."),
+  preserve_alpha: z.boolean().default(true).describe("Keep alpha channels for transparent input images when preprocessing.")
+};
 
 const commonFields = {
   prompt: z.string().min(1).describe("Image prompt. Keep text-heavy content out of images when the asset will be placed into editable PPTX."),
@@ -51,8 +70,16 @@ const generateSchema = z.object(commonFields);
 
 const editSchema = z.object({
   ...commonFields,
-  image_paths: z.array(z.string()).min(1).max(16).describe("Input image file paths to edit."),
+  ...inputBudgetFields,
+  image_paths: z.array(z.string()).max(8).optional().describe("Input image file paths to edit. Prefer image_asset_ids for images already used in this thread."),
   mask_path: z.string().optional().describe("Optional mask image path. Transparent areas are edited by compatible OpenAI-style APIs.")
+});
+
+const registerAssetSchema = z.object({
+  image_path: z.string().min(1).describe("Local image path to register as a reusable Image2 asset."),
+  name: z.string().optional().describe("Short human-readable name for the asset."),
+  description: z.string().max(1000).optional().describe("Brief description used for lightweight context. Do not include base64 or long OCR dumps."),
+  tags: z.array(z.string()).max(16).optional().describe("Optional lightweight tags for later lookup.")
 });
 
 const elementSpecSchema = z.union([
@@ -66,6 +93,7 @@ const elementSpecSchema = z.union([
 
 const extractElementsSchema = z.object({
   image_path: z.string().min(1).describe("Flattened source design image to split into reusable assets."),
+  ...inputBudgetFields,
   elements: z.array(elementSpecSchema).min(1).max(24).describe("Elements to isolate. Provide names or objects with name/description/prompt."),
   include_background: z.boolean().default(false).describe("Also recreate the underlying background/backdrop as a separate asset."),
   prompt_prefix: z.string().optional().describe("Shared extra instructions applied to every element extraction."),
@@ -115,6 +143,16 @@ server.tool(
   editSchema.shape,
   async (args) => {
     const result = await editImages(args);
+    return jsonToolResult(result);
+  }
+);
+
+server.tool(
+  "image2_register_asset",
+  "Register a local image as a reusable lightweight Image2 asset. Future edits can pass image_asset_ids instead of repeating historical image context.",
+  registerAssetSchema.shape,
+  async (args) => {
+    const result = registerImageAsset(args);
     return jsonToolResult(result);
   }
 );
@@ -243,6 +281,7 @@ async function extractDesignElements(args, signal) {
   const outputDir = ensureOutputDir(args.output_dir);
   const elements = args.elements.map(normalizeElementSpec);
   const extracted = [];
+  const sourceProxy = await prepareInputImage(args.image_path, args);
 
   for (const element of elements) {
     const editArgs = {
@@ -257,7 +296,13 @@ async function extractDesignElements(args, signal) {
       n: args.n,
       output_dir: outputDir,
       filename_prefix: `${args.filename_prefix}-${slugifyFilename(element.name)}`,
-      image_paths: [args.image_path],
+      image_paths: [sourceProxy.path],
+      input_preprocessing: false,
+      max_input_bytes: args.max_input_bytes,
+      max_single_input_bytes: args.max_single_input_bytes,
+      max_input_long_edge: args.max_input_long_edge,
+      input_compression_quality: args.input_compression_quality,
+      preserve_alpha: args.preserve_alpha,
       extra: args.extra
     };
 
@@ -285,7 +330,13 @@ async function extractDesignElements(args, signal) {
       n: 1,
       output_dir: outputDir,
       filename_prefix: `${args.filename_prefix}-background`,
-      image_paths: [args.image_path],
+      image_paths: [sourceProxy.path],
+      input_preprocessing: false,
+      max_input_bytes: args.max_input_bytes,
+      max_single_input_bytes: args.max_single_input_bytes,
+      max_input_long_edge: args.max_input_long_edge,
+      input_compression_quality: args.input_compression_quality,
+      preserve_alpha: args.preserve_alpha,
       extra: args.extra
     };
 
@@ -299,6 +350,7 @@ async function extractDesignElements(args, signal) {
   return {
     mode: "element_extraction",
     source_image: expandHome(args.image_path),
+    source_proxy: inputReportForResult([sourceProxy]),
     output_dir: outputDir,
     extraction_note: "This uses Image2 image editing to isolate or reconstruct named elements from a flattened source image. It does not recover original PSD/Figma layers or use external background-removal helpers.",
     elements: extracted,
@@ -312,6 +364,7 @@ async function editImages(args, signal) {
   const endpoint = `${baseUrl}/images/edits`;
   const form = new FormData();
   const request = buildJsonRequest(args);
+  const preparedInputs = await prepareInputImages(args);
 
   for (const [key, value] of Object.entries(request)) {
     if (key === "extra" || value === undefined || value === null) continue;
@@ -322,11 +375,12 @@ async function editImages(args, signal) {
     }
   }
 
-  for (const imagePath of args.image_paths) {
-    form.append("image", await fileBlob(imagePath), path.basename(imagePath));
+  for (const input of preparedInputs) {
+    form.append("image", await fileBlob(input.path), path.basename(input.path));
   }
   if (args.mask_path) {
-    form.append("mask", await fileBlob(args.mask_path), path.basename(args.mask_path));
+    const mask = await prepareInputImage(args.mask_path, { ...args, preserve_alpha: true });
+    form.append("mask", await fileBlob(mask.path), path.basename(mask.path));
   }
 
   const response = await fetch(endpoint, {
@@ -341,6 +395,7 @@ async function editImages(args, signal) {
     mode: "edit",
     endpoint,
     model: request.model,
+    input_context: inputReportForResult(preparedInputs),
     images: saved,
     raw_usage: json.usage || null
   };
@@ -615,10 +670,239 @@ async function parseJsonResponse(response) {
   return json;
 }
 
+async function prepareInputImages(args) {
+  const paths = resolveInputImagePaths(args);
+  if (!paths.length) {
+    throw new Error("image2_edit requires at least one image path or image_asset_id.");
+  }
+
+  const unique = [];
+  const seen = new Set();
+  for (const imagePath of paths) {
+    const resolved = expandHome(imagePath);
+    const hash = hashFile(resolved);
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+    unique.push(resolved);
+  }
+
+  const prepared = [];
+  for (const imagePath of unique) {
+    prepared.push(await prepareInputImage(imagePath, args));
+  }
+
+  enforceInputBudget(prepared, args.max_input_bytes || DEFAULT_MAX_INPUT_BYTES);
+  return prepared;
+}
+
+function resolveInputImagePaths(args) {
+  const paths = [];
+  for (const imagePath of args.image_paths || []) {
+    paths.push(imagePath);
+  }
+  for (const assetId of args.image_asset_ids || []) {
+    const asset = registeredAssets.assets?.[assetId];
+    if (!asset) throw new Error(`Unknown image_asset_id: ${assetId}`);
+    paths.push(asset.path);
+  }
+  return paths;
+}
+
+async function prepareInputImage(imagePath, args = {}) {
+  const resolved = expandHome(imagePath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Input image does not exist: ${resolved}`);
+  }
+
+  const original = imageMetadata(resolved);
+  const inputPreprocessing = args.input_preprocessing !== false;
+  const maxLongEdge = args.max_input_long_edge || DEFAULT_MAX_INPUT_LONG_EDGE;
+  const quality = args.input_compression_quality || DEFAULT_INPUT_COMPRESSION_QUALITY;
+  const maxSingleBytes = args.max_single_input_bytes || DEFAULT_MAX_SINGLE_INPUT_BYTES;
+  const hasAlpha = Boolean(original.hasAlpha);
+  const shouldResize = original.longEdge > maxLongEdge;
+  const shouldCompress = original.bytes > maxSingleBytes || original.ext === ".png" || original.ext === ".tiff" || original.ext === ".tif";
+
+  if (!inputPreprocessing || process.platform !== "darwin" || (!shouldResize && !shouldCompress)) {
+    return {
+      path: resolved,
+      original_path: resolved,
+      original_bytes: original.bytes,
+      bytes: original.bytes,
+      width: original.width,
+      height: original.height,
+      format: original.ext.replace(/^\./, "") || "unknown",
+      prepared: false
+    };
+  }
+
+  const sourceHash = hashFile(resolved).slice(0, 16);
+  const keepAlpha = hasAlpha && args.preserve_alpha !== false;
+  const targetFormat = keepAlpha ? "png" : "jpeg";
+  const outputPath = path.join(
+    INPUT_CACHE_DIR,
+    `${path.basename(resolved, path.extname(resolved)).replace(/[^a-zA-Z0-9._-]/g, "_")}-${sourceHash}-${maxLongEdge}-${quality}.${targetFormat === "jpeg" ? "jpg" : "png"}`
+  );
+
+  if (!fs.existsSync(outputPath)) {
+    const command = targetFormat === "jpeg"
+      ? ["-s", "format", "jpeg", "-s", "formatOptions", String(quality), "-Z", String(maxLongEdge), resolved, "--out", outputPath]
+      : ["-s", "format", "png", "-Z", String(maxLongEdge), resolved, "--out", outputPath];
+    try {
+      execFileSync("sips", command, { stdio: "ignore" });
+    } catch {
+      return {
+        path: resolved,
+        original_path: resolved,
+        original_bytes: original.bytes,
+        bytes: original.bytes,
+        width: original.width,
+        height: original.height,
+        format: original.ext.replace(/^\./, "") || "unknown",
+        prepared: false
+      };
+    }
+  }
+
+  const prepared = imageMetadata(outputPath);
+  const usePrepared = prepared.bytes < original.bytes || original.bytes > maxSingleBytes || shouldResize;
+  const finalPath = usePrepared ? outputPath : resolved;
+  const finalMeta = usePrepared ? prepared : original;
+
+  return {
+    path: finalPath,
+    original_path: resolved,
+    original_bytes: original.bytes,
+    bytes: finalMeta.bytes,
+    width: finalMeta.width,
+    height: finalMeta.height,
+    format: finalMeta.ext.replace(/^\./, "") || targetFormat,
+    prepared: usePrepared
+  };
+}
+
+function enforceInputBudget(inputs, maxInputBytes) {
+  const total = inputs.reduce((sum, input) => sum + input.bytes, 0);
+  if (total <= maxInputBytes) return;
+  const mb = (value) => `${(value / 1024 / 1024).toFixed(2)}MB`;
+  const lines = inputs.map((input) => `${path.basename(input.original_path)}: ${mb(input.original_bytes)} -> ${mb(input.bytes)}`);
+  throw new Error(`Prepared Image2 input images are ${mb(total)}, over max_input_bytes ${mb(maxInputBytes)}. Lower max_input_long_edge, reduce reference image count, or register only the current target image. ${lines.join("; ")}`);
+}
+
+function inputReportForResult(inputs) {
+  const totalOriginalBytes = inputs.reduce((sum, input) => sum + input.original_bytes, 0);
+  const totalPreparedBytes = inputs.reduce((sum, input) => sum + input.bytes, 0);
+  return {
+    image_count: inputs.length,
+    original_bytes: totalOriginalBytes,
+    prepared_bytes: totalPreparedBytes,
+    saved_bytes: Math.max(0, totalOriginalBytes - totalPreparedBytes),
+    max_long_edge: Math.max(0, ...inputs.map((input) => Math.max(input.width || 0, input.height || 0))),
+    prepared_images: inputs.map((input) => ({
+      filename: path.basename(input.path),
+      original_filename: path.basename(input.original_path),
+      bytes: input.bytes,
+      original_bytes: input.original_bytes,
+      width: input.width,
+      height: input.height,
+      format: input.format,
+      prepared: input.prepared
+    }))
+  };
+}
+
 async function fileBlob(filePath) {
   const resolved = expandHome(filePath);
   const bytes = fs.readFileSync(resolved);
   return new Blob([bytes]);
+}
+
+function registerImageAsset(args) {
+  const resolved = expandHome(args.image_path);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Input image does not exist: ${resolved}`);
+  }
+  const meta = imageMetadata(resolved);
+  const hash = hashFile(resolved);
+  const assetId = `img_${hash.slice(0, 12)}`;
+  const now = new Date().toISOString();
+  const existing = registeredAssets.assets?.[assetId];
+  registeredAssets.assets ||= {};
+  registeredAssets.assets[assetId] = {
+    id: assetId,
+    path: resolved,
+    name: args.name || existing?.name || path.basename(resolved),
+    description: args.description || existing?.description || "",
+    tags: args.tags || existing?.tags || [],
+    hash,
+    bytes: meta.bytes,
+    width: meta.width,
+    height: meta.height,
+    has_alpha: meta.hasAlpha,
+    created_at: existing?.created_at || now,
+    updated_at: now
+  };
+  saveAssetRegistry();
+  return {
+    asset: publicAsset(registeredAssets.assets[assetId]),
+    usage: {
+      edit_with_asset: {
+        image_asset_ids: [assetId]
+      }
+    }
+  };
+}
+
+function publicAsset(asset) {
+  return {
+    id: asset.id,
+    path: asset.path,
+    name: asset.name,
+    description: asset.description,
+    tags: asset.tags,
+    bytes: asset.bytes,
+    width: asset.width,
+    height: asset.height,
+    has_alpha: asset.has_alpha,
+    updated_at: asset.updated_at
+  };
+}
+
+function imageMetadata(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const stat = fs.statSync(filePath);
+  const output = runSips(["-g", "pixelWidth", "-g", "pixelHeight", "-g", "hasAlpha", filePath]);
+  const width = numberFromSips(output, "pixelWidth") || 0;
+  const height = numberFromSips(output, "pixelHeight") || 0;
+  const hasAlpha = /hasAlpha:\s*yes/i.test(output);
+  return {
+    ext,
+    bytes: stat.size,
+    width,
+    height,
+    longEdge: Math.max(width, height),
+    hasAlpha
+  };
+}
+
+function runSips(args) {
+  if (process.platform !== "darwin") return "";
+  try {
+    return execFileSync("sips", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch {
+    return "";
+  }
+}
+
+function numberFromSips(output, key) {
+  const match = output.match(new RegExp(`${key}:\\s*(\\d+)`, "i"));
+  return match ? Number(match[1]) : 0;
+}
+
+function hashFile(filePath) {
+  const hash = createHash("sha256");
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest("hex");
 }
 
 function authHeaders() {
@@ -660,6 +944,23 @@ function loadEnvFile(filePath) {
     value = value.replace(/^['"]|['"]$/g, "");
     if (!process.env[key]) process.env[key] = value;
   }
+}
+
+function loadAssetRegistry() {
+  if (!fs.existsSync(ASSETS_FILE)) return { version: 1, assets: {} };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(ASSETS_FILE, "utf8"));
+    return {
+      version: 1,
+      assets: parsed.assets && typeof parsed.assets === "object" ? parsed.assets : {}
+    };
+  } catch {
+    return { version: 1, assets: {} };
+  }
+}
+
+function saveAssetRegistry() {
+  fs.writeFileSync(ASSETS_FILE, JSON.stringify(registeredAssets, null, 2));
 }
 
 function updateJob(jobId, patch) {

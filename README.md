@@ -12,6 +12,7 @@ plugins/pixel-ark-image2/dist/server.js
 
 ## 功能
 
+- `image2_register_asset`：把本地图片登记为轻量资产，后续编辑可用 `image_asset_ids` 引用，减少历史图片上下文重复传递。
 - `image2_generate`：生成一张或多张图片并保存到本地。
 - `image2_edit`：基于一张或多张输入图进行图片编辑。
 - `image2_extract_elements`：从扁平设计图中拆分指定元素，导出透明 PNG/WebP 素材。
@@ -113,6 +114,7 @@ IMAGE2_MODEL=gpt-image-2
 插件安装成功后应包含这些工具：
 
 ```text
+image2_register_asset
 image2_generate
 image2_edit
 image2_extract_elements
