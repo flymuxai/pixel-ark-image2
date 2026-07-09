@@ -45,7 +45,7 @@ plugins/pixel-ark-image2/dist/server.js
 这个仓库内置了 repo marketplace 文件：`.agents/plugins/marketplace.json`。在 Codex CLI 中执行：
 
 ```bash
-codex plugin marketplace add https://gitee.com/codeTrees/pixel-ark-image2.git
+codex plugin marketplace add https://github.com/flymuxai/pixel-ark-image2.git
 codex plugin marketplace list
 codex plugin add pixel-ark-image2@pixel-ark
 ```
@@ -56,10 +56,10 @@ codex plugin add pixel-ark-image2@pixel-ark
 
 ### 方式二：本地克隆后安装
 
-如果你的 Codex 环境不能直接从 Gitee marketplace 安装，先克隆到本地：
+如果你的 Codex 环境不能直接从 marketplace 安装，先克隆到本地：
 
 ```bash
-git clone https://gitee.com/codeTrees/pixel-ark-image2.git
+git clone https://github.com/flymuxai/pixel-ark-image2.git
 cd pixel-ark-image2
 codex plugin marketplace add .
 codex plugin add pixel-ark-image2@pixel-ark
@@ -95,11 +95,11 @@ Copy-Item plugins\pixel-ark-image2\.env.example "$env:USERPROFILE\.codex\image2-
 
 ```env
 IMAGE2_API_KEY=你的 API Key
-IMAGE2_BASE_URL=https://model.zhengshuyun.net
+IMAGE2_BASE_URL=https://api.flymux.com
 IMAGE2_MODEL=gpt-image-2
 ```
 
-也可以使用 `OPENAI_API_KEY` 作为兼容环境变量。`IMAGE2_BASE_URL` 默认使用 `https://model.zhengshuyun.net`，也可填写官方 OpenAI 地址或其他兼容 OpenAI Images API 的代理/私有服务地址。
+也可以使用 `OPENAI_API_KEY` 作为兼容环境变量。`IMAGE2_BASE_URL` 默认使用 `https://api.flymux.com`，也可填写官方 OpenAI 地址或其他兼容 OpenAI Images API 的代理/私有服务地址。
 
 ## 验证安装
 
@@ -130,7 +130,7 @@ image2_cancel_job
 先安装依赖：
 
 ```bash
-git clone https://gitee.com/codeTrees/pixel-ark-image2.git
+git clone https://github.com/flymuxai/pixel-ark-image2.git
 cd pixel-ark-image2
 cd plugins/pixel-ark-image2
 npm install
@@ -160,7 +160,7 @@ args = ["C:\\Users\\你的用户名\\path\\to\\pixel-ark-image2\\plugins\\pixel-
 ```toml
 [mcp_servers.image2.env]
 IMAGE2_API_KEY = "你的 API Key"
-IMAGE2_BASE_URL = "https://model.zhengshuyun.net"
+IMAGE2_BASE_URL = "https://api.flymux.com"
 IMAGE2_MODEL = "gpt-image-2"
 ```
 

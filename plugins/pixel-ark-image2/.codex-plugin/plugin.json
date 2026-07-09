@@ -3,10 +3,10 @@
   "version": "0.1.0+codex.20260615052526",
   "description": "Pixel Ark Image2 is a local GPT Image compatible Codex plugin for generating, editing, extracting, and previewing image assets.",
   "author": {
-    "name": "codeTrees / local plugin"
+    "name": "flymuxai"
   },
-  "homepage": "https://gitee.com/codeTrees/pixel-ark-image2",
-  "repository": "https://gitee.com/codeTrees/pixel-ark-image2",
+  "homepage": "https://github.com/flymuxai/pixel-ark-image2.git",
+  "repository": "https://github.com/flymuxai/pixel-ark-image2.git",
   "license": "MIT",
   "keywords": [
     "mcp",
@@ -20,7 +20,7 @@
     "displayName": "Pixel Ark Image2",
     "shortDescription": "Generate and edit images with direct previews",
     "longDescription": "Use Pixel Ark Image2 to generate images, edit images, extract transparent assets from flattened designs, and run async image jobs from Codex. The plugin reads API settings from ~/.codex/image2-mcp.env or environment variables, saves output locally, and should return generated images as inline previews whenever possible.",
-    "developerName": "codeTrees / local plugin",
+    "developerName": "flymuxai",
     "category": "Creativity",
     "capabilities": [
       "Interactive",

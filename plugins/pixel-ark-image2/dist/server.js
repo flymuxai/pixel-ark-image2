@@ -21126,7 +21126,7 @@ var jobs = /* @__PURE__ */ new Map();
 var registeredAssets = loadAssetRegistry();
 loadEnvFile(process.env.IMAGE2_ENV_FILE || DEFAULT_ENV_FILE);
 var apiKey = process.env.IMAGE2_API_KEY || process.env.OPENAI_API_KEY;
-var baseUrl = normalizeBaseUrl(process.env.IMAGE2_BASE_URL || "https://model.zhengshuyun.net");
+var baseUrl = normalizeBaseUrl(process.env.IMAGE2_BASE_URL || "https://api.flymux.com");
 var defaultModel = process.env.IMAGE2_MODEL || "gpt-image-2";
 var defaultOutputDir = expandHome(process.env.IMAGE2_DEFAULT_OUTPUT_DIR || DEFAULT_OUTPUT_DIR);
 fs.mkdirSync(defaultOutputDir, { recursive: true });

@@ -31,7 +31,7 @@ const registeredAssets = loadAssetRegistry();
 loadEnvFile(process.env.IMAGE2_ENV_FILE || DEFAULT_ENV_FILE);
 
 const apiKey = process.env.IMAGE2_API_KEY || process.env.OPENAI_API_KEY;
-const baseUrl = normalizeBaseUrl(process.env.IMAGE2_BASE_URL || "https://model.zhengshuyun.net");
+const baseUrl = normalizeBaseUrl(process.env.IMAGE2_BASE_URL || "https://api.flymux.com");
 const defaultModel = process.env.IMAGE2_MODEL || "gpt-image-2";
 const defaultOutputDir = expandHome(process.env.IMAGE2_DEFAULT_OUTPUT_DIR || DEFAULT_OUTPUT_DIR);
 
